@@ -5,7 +5,7 @@ from pprint import *
 import time
 import os
 from datetime import datetime
-from utils import *
+import utils 
 
     
 def main():
@@ -34,80 +34,49 @@ def main():
         exit(1)
     
     print("number of cameras: ", num_of_cam)
-
-    #-------------------------------------------------------------------------------------------------------
     
-    preview_mode = camera1.sensor_modes[0] # Lower resolution sensor mode for the preview window
-    capture_mode = camera1.sensor_modes[2] # Highest resolution sensor mode for image capture
+    new_folder_path, folder_name = utils.make_image_folder('/home/sensors/Pictures/')
     
-    # configuration suitable for fast preview window based on sensor mode 0
-    preview_config = camera1.create_preview_configuration(sensor={'output_size': preview_mode['size'],
-                                                                 'bit_depth': preview_mode['bit_depth']})  
-                                                                 
-    # configuration suitable for capturing a high-resolution still image based on sensor mode 2
-    capture_config = camera1.create_still_configuration(sensor={'output_size': capture_mode['size'],
-                                                               'bit_depth': capture_mode['bit_depth']})  
-    # configure preview window for both cameras                                                            
-    camera0.configure(preview_config)
-    camera1.configure(preview_config)
+    # initially set Awb and Aec/Aeg to auto and get baseline camera control settings and metadata
+    metadata0 = utils.get_auto_settings(camera0, new_folder_path + '/auto_settings_noir.png')
+    metadata1 = utils.get_auto_settings(camera1, new_folder_path + '/auto_settings_rgb.png')
     
-    # TODO: IMPLEMENT FUNCTION TO INITIALLY SET  AWB AND AEC/AGC TO AUTO AND GET BASELINE CAMERA CONTROL SETTINGS AND METADATA
-    # TODO: IMPLEMENT FUNCTION TO SET CAMERA CONTROLS BASED ON METADATA FROM AUTO SETTINGS
-    # set camera controls based on auto settings
-    camera0.set_controls({
-        "AeEnable": False,  # Disable AEC/AGC
-        "AwbEnable": False,  # Disable AWB
-        "AfMode": controls.AfModeEnum.Manual,  # Set autofocus to manual so lens position can be set
-        "LensPosition": 0.0,  # in dioptres (reciprocal of the distance in metres)
-        "ExposureTime": 1500,  # in microseconds = 1/ 1million, smaller number is faster
-        "AnalogueGain": 1.0,  # min: 1.1228070259094238, max: 16.0
-        "ColourGains": (1.0, 2.5)  # red gain, blue gain (between 0.0 and 32.0), setting this overrides AWB even if AwbEnable is set to true
-    })
-
-    camera1.set_controls({
-        "AeEnable": False,  # Disable AEC/AGC
-        "AwbEnable": False,  # Disable AWB
-        "AfMode": controls.AfModeEnum.Manual,  # Set autofocus to manual so lens position can be set
-        "LensPosition": 0.0,  # in dioptres (reciprocal of the distance in metres)
-        "ExposureTime": 1500,  # in microseconds = 1/ 1million, smaller number is faster
-        "AnalogueGain": 1.0,  # min: 1.1228070259094238, max: 16.0
-        "ColourGains": (1.0, 2.5)  # red gain, blue gain (between 0.0 and 32.0), setting this overrides AWB even if AwbEnable is set to true
-    })
+    # Tell us that the  auto settings have been taken
+    print ("Auto Settings picture has been taken")
+    
+    # Call configuration function
+    config = utils.configure_camera(camera1)
+    
+    # Configure cameras
+    camera0.configure(config)
+    camera1.configure(config)
+    
+    # set camera controls based on metadata from auto settings
+    utils.set_camera_controls(camera0, metadata0)
+    utils.set_camera_controls(camera1, metadata1)
 
     # start streams for both cameras
-    camera0.start(show_preview=True)
-    camera1.start(show_preview=True)
-
-    # TODO: SEPARATE LOGIC TO MAKE A NEW FOLDER AND PUT IT INTO A FUNCTION IN UTILS SCRIPT
-    # new_folder_path, folder_name = make_image_folder('/home/sensors/Pictures/')
+    camera0.start()
+    camera1.start()
     
-    # create new image folder for output
-    now = datetime.now()  # Get the current date and time
-    folder_name = now.strftime("%Y-%m-%d_%H-%M-%S")  # Format the date and time as desired for the folder name
-    new_folder_path = os.path.join('/home/sensors/Pictures/', folder_name)
-    os.mkdir(new_folder_path)
-
-    # TODO: SEPARATE CAMERA LOOP INTO 'BUTTON_CAPTURE' FUNCTION
-    # TODO: WRITE 'TIMED_CAPTURE' AND 'GPS_CAPTURE FUNCTIONS AS ALTERNATIVES
     i = 0 
     while True: 
         if button.is_pressed:
             # Picamera2 uses PIL to save the images, so this supports JPEG, BMP, PNG and GIF files
             img_name0 = 'imx708_noir_%s.png' % str(i) 
-            img_name1 = 'imx708_%s.png' % str(i) 
+            img_name1 = 'imx708_%s.png' % str(i)
+            
             # Switch to still capture configuration and take a picture
-            camera0.switch_mode_and_capture_file(capture_config, os.path.join(new_folder_path, img_name0))  
-            camera1.switch_mode_and_capture_file(capture_config, os.path.join(new_folder_path, img_name1))  
+            camera0.capture_file(os.path.join(new_folder_path, img_name0))  
+            camera1.capture_file(os.path.join(new_folder_path, img_name1))
+            
             # Get image metadata
             metadata0 = camera0.capture_metadata()
             metadata1 = camera1.capture_metadata()
-            # Save metadata
-            pprint(metadata0)
-            print()
-            pprint(metadata1)
-            # TODO: IMPLEMENT FUNCTION TO SAVE METADATA TO A FILE
-            #save_metadata_to_file(os.path.join(new_folder_path, 'metadata_%s.txt' % folder_name), img_name0, metadata0)
-            #save_metadata_to_file(os.path.join(new_folder_path, 'metadata_%s.txt' % folder_name), img_name1, metadata1)
+
+            # Save metadata per image to file
+            utils.save_metadata_to_file(os.path.join(new_folder_path, 'metadata_%s.txt' % folder_name), img_name0, metadata0)
+            utils.save_metadata_to_file(os.path.join(new_folder_path, 'metadata_%s.txt' % folder_name), img_name1, metadata1)
             button.wait_for_release()  # This stops the camera from rapid firing if the button is held down
             i += 1 
 

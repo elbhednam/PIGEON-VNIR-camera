@@ -6,7 +6,6 @@ import time
 import os
 from datetime import datetime
 
-# TODO: write a function that saves writes the image file name and corresponding metadata to a file for each image capture. Put separators and line breaks where appropriate.
 def save_metadata_to_file(filename, image_name, metadata):
     """
     Saves image metadata to a file.
@@ -19,10 +18,15 @@ def save_metadata_to_file(filename, image_name, metadata):
     Returns:
     - None
     """
+    with open(filename, 'a') as file:
+        file.write("Image Name: {}\n".format(image_name))
+        file.write("Image Metadata:\n")
+        file.write(str(metadata))
+        file.write("\n")
+        file.write("------------------------------------------------------------------\n")
     pass
 
-# TODO: Put the logic to a create a new folder here. Return the folder path and folder name.
-def create_new_folder(base_dir):
+def make_image_folder(base_dir):
     """
     Creates a new folder with a timestamped name.
 
@@ -33,10 +37,13 @@ def create_new_folder(base_dir):
     - new_folder_path (str): The path to the newly created folder.
     - folder_name (str): The name of the newly created folder.
     """
+    now = datetime.now()  # Get the current date and time
+    folder_name = now.strftime("%Y-%m-%d_%H-%M-%S")  # Format the date and time as desired for the folder name
+    new_folder_path = os.path.join(base_dir, folder_name)
+    os.mkdir(new_folder_path)
+    
+    return new_folder_path, folder_name
 
-    pass
-
-# TODO: Write a function that deletes empty folders from when we run the code but don't capture an image
 def delete_empty_folder(folder_path):
     """
     Deletes the folder if it is empty.
@@ -47,10 +54,23 @@ def delete_empty_folder(folder_path):
     Returns:
     - None
     """
+    if os.path.exists(folder_path) and os.path.isdir(folder_path):
+        if not os.listdir(folder_path):
+            os.rmdir(folder_path)
+    
     pass
    
-# TODO: Write a function that sets the AWB and AEC/AGC to true and captures and returns metadata. Metadata will be returned and used for manual camera settings.   
-def get_auto_settings(camera):
+def configure_camera(camera):
+    # highest resolution capture mode for the IMX708
+    mode = camera.sensor_modes[2]
+    
+    # configuration suitable for capturing a high-resolution still image based on sensor mode 2
+    conf = camera.create_still_configuration(sensor={'output_size': mode['size'],
+                                                     'bit_depth': mode['bit_depth'],
+                                                     'format': mode['unpacked']}) # Explicitly requests 'SRGGB10' unpacked format
+    return conf
+    
+def get_auto_settings(camera, file_path):
     """
     Retrieves automatic camera settings.
 
@@ -60,9 +80,34 @@ def get_auto_settings(camera):
     Returns:
     - metadata: The metadata object containing automatic camera settings.
     """
-    pass
+    #capture_mode = camera.sensor_modes[2] # Highest resolution sensor mode for image capture
+    
+    # configuration suitable for capturing a high-resolution still image based on sensor mode 2
+    config = configure_camera(camera)
+    camera.configure(config)
+    # Set AeEnable and AwbEnable to True
+    camera.set_controls({
+    "AeEnable": True,
+    "AwbEnable": True,
+    "AfMode": controls.AfModeEnum.Manual,
+    "LensPosition": 0.0,
+    })
 
-# TODO: Take camera settings logic from main script and put it into a function that sets the camera settings based on metadata from auto settings
+    # Start the camera
+    camera.start()
+
+    # Wait for AEC/AGC to settle (1-2 seconds)
+    time.sleep(1)
+
+    # Capture metadata
+    metadata = Metadata(camera.capture_metadata())
+    # create new image folder for output
+    camera.capture_file(file_path) 
+    # Stop the camera
+    camera.stop()
+
+    return metadata
+    
 def set_camera_controls(camera, metadata):
     """
     Sets camera controls.
@@ -74,58 +119,25 @@ def set_camera_controls(camera, metadata):
     Returns:
     - None
     """
+
+     # Set AeEnable and AwbEnable to False
+    camera.set_controls({
+    "AeEnable": False,
+    "AwbEnable": False,
+    "AfMode": controls.AfModeEnum.Manual,
+    "LensPosition": 0.0,
+    
+    "ExposureTime": metadata.ExposureTime,
+    "AnalogueGain": metadata.AnalogueGain,
+    "ColourGains": metadata.ColourGains,
+
+    })
+
+    return
+
+def system_shutdown():
+
+    Button(21).wait_for_press()
+    os.system("sudo poweroff")
     pass
 
-# TODO: Take the logic from the camera loop and put it here
-def button_capture(button, camera0, camera1, capture_config, new_folder_path, folder_name):
-    """
-    Capture images when the button is pressed.
-
-    Parameters:
-    - button: The GPIO button object.
-    - camera0: The NoIR camera object.
-    - camera1: The RGB camera object.
-    - capture_config: Configuration for capturing images.
-    - new_folder_path (str): The path to the newly created folder.
-    - folder_name (str): The name of the newly created folder.
-
-    Returns:
-    - None
-    """
-    pass
-
-# TODO: Write a function that will capture an image over regular intervals - 10s, 20s, 30s, whatever
-def timed_capture(button, camera0, camera1, capture_config, new_folder_path, folder_name):
-    """
-    Capture images at regular intervals.
-
-    Parameters:
-    - button: The GPIO button object.
-    - camera0: The NoIR camera object.
-    - camera1: The RGB camera object.
-    - capture_config: Configuration for capturing images.
-    - new_folder_path (str): The path to the newly created folder.
-    - folder_name (str): The name of the newly created folder.
-
-    Returns:
-    - None
-    """
-    pass
-
-# TODO: Write a function that will capture an image triggered by the drone GPS
-def gps_capture(button, camera0, camera1, capture_config, new_folder_path, folder_name):
-    """
-    Capture images triggered by GPS.
-
-    Parameters:
-    - button: The GPIO button object.
-    - camera0: The NoIR camera object.
-    - camera1: The RGB camera object.
-    - capture_config: Configuration for capturing images.
-    - new_folder_path (str): The path to the newly created folder.
-    - folder_name (str): The name of the newly created folder.
-
-    Returns:
-    - None
-    """
-    pass
